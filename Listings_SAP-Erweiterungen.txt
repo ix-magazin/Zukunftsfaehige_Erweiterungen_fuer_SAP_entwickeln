@@ -1,0 +1,157 @@
+Listings
+
+1_cds_header
+
+@EndUserText.label : ‘Billing Document Header’
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #RESTRICTED
+define table zvbrk {
+  key client : abap.clnt not null;
+  key vbeln  : zvbeln not null;
+  kunag      : abap.char(10);
+  fkdat      : abap.dats;
+  @Semantics.amount.currencyCode : 'zvbrk.waerk'
+  netwr      : abap.curr(15,2);
+  waerk      : abap.cuky;
+  erdat      : abap.dats;
+}
+
+2_basic_view
+
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: ‘Billing Document Header’
+define root view entity Z_I_BILLINGDOCHDR
+  as select from zvbrk
+  composition [0..*] of Z_I_BILLINGDOCPOS as _vbrp
+{
+  key vbeln as BillingDocument,
+      kunag as CustomerID,
+      fkdat as BillingDate,
+      netwr as NetValue,
+      waerk as Currency,
+      erdat as InvoicingDate,
+      _vbrp // Make association public
+}
+
+
+3_behavior
+
+managed implementation in class zbp_i_billingdoc unique;
+
+define behavior for Z_I_BILLINGDOCHDR 
+persistent table zvbrk
+lock master
+
+{
+
+  field ( mandatory ) BillingDocument, CustomerID, BillingDate, NetValue, Currency, InvoicingDate;
+  validation validateCustomerID on save { field CustomerID; }
+  create;
+  update;
+  delete;
+  association _vbrp { create; }
+
+  mapping for zvbrk
+  {
+    BillingDocument = vbeln;
+    CustomerID = kunag;
+    BillingDate = fkdat;
+    NetValue = netwr;
+    Currency = waerk;
+    InvoicingDate = erdat;
+  }
+}
+
+
+4_consumption
+
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: ‘Billing Document Header UI’
+@UI: { 
+    headerInfo: { 
+        title.label: ‘Billing Document Details’, 
+        title: {type: #WITH_NAVIGATION_PATH, value: 'BillingDocument'}, 
+        typeName: 'Billing Document', 
+        typeNamePlural: ‘Billing Documents’
+    }
+}
+define root view entity Z_C_BILLINGDOCHDR 
+    provider contract transactional_query
+    as projection on Z_I_BILLINGDOCHDR {
+    @UI.facet: [
+    
+    { id:'HeaderFacet’,
+      purpose: #HEADER,
+      type: #FIELDGROUP_REFERENCE,
+      targetQualifier: ‘Fieldgroup:HeaderItems’, 
+      position: 10 
+    },
+    
+    { 
+        label: ‘Overview’,
+        id: ‘BillingDoc’,
+        position: 10,
+        purpose: #STANDARD,
+        type: #IDENTIFICATION_REFERENCE 
+    },
+    {
+        label: ‘Positions’,
+        id: ‘positions’,
+        position: 20,
+        purpose: #STANDARD,
+        type: #LINEITEM_REFERENCE,
+        targetElement: '_vbrp'
+    }]
+    @UI.lineItem: [{position: 10,type: #STANDARD,label: 'Billing Document' }]
+    @UI.identification: [{position: 10,type: #STANDARD,label: 'Billing Document' }]
+    @UI.selectionField: [{position: 10}]
+    @UI.fieldGroup: [{qualifier: ‘Fieldgroup:HeaderItems’, position: 10, label: ‘Billing Document’}]
+    key BillingDocument,
+    @UI.lineItem: [{position: 20,type: #STANDARD,label: 'Customer ID' }]
+    @UI.identification: [{position: 20,type: #STANDARD,label: 'Customer ID' }]
+    @UI.selectionField: [{position: 20}]
+    @UI.fieldGroup: [{qualifier: ‘Fieldgroup:HeaderItems’, position: 20, label: ‘Customer ID’}]
+    CustomerID,
+    @UI.lineItem: [{position: 30,type: #STANDARD,label: 'Billing Date' }]
+    @UI.identification: [{position: 30,type: #STANDARD,label: 'Billing Date' }]
+    @UI.selectionField: [{position: 30}]
+    BillingDate,
+    @UI.lineItem: [{position: 40,type: #STANDARD,label: 'Net Value' }]
+    @UI.identification: [{position: 40,type: #STANDARD,label: 'Net Value' }]
+    NetValue,
+    @UI.lineItem: [{position: 50,type: #STANDARD,label: 'Currency' }]
+    @UI.identification: [{position: 50,type: #STANDARD,label: 'Currency' }]
+    @Consumption.valueHelpDefinition: [{entity: { name: 'I_Currency', element: 'Currency'}}]
+    Currency,
+    @UI.lineItem: [{position: 60,type: #STANDARD,label: 'Invoicing Date' }]
+    @UI.identification: [{position: 60,type: #STANDARD,label: 'Invoicing Date' }]
+    @UI.selectionField: [{position: 40}]
+    InvoicingDate, 
+    _vbrp : redirected to composition child Z_C_BILLINGDOCPOS
+}
+
+
+5_consumption_behavior
+
+projection;
+
+define behavior for Z_C_BILLINGDOCHDR
+{
+  use create;
+  use update;
+  use delete;
+
+  use association _vbrp { create; }
+}
+
+
+6_service
+
+@EndUserText.label: ‘Billing Document Service Definition’
+define service Z_BILLINGDOCUMENT {
+  expose Z_C_BILLINGDOCHDR as billingDocument;
+  expose Z_C_BILLINGDOCPOS as billingDocumentPos;
+}
+
